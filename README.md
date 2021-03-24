@@ -1,6 +1,8 @@
 Go Database Eventing (Publish event using database)
 ================================
 
+[![Test](https://github.com/pongsatt/go-dbevent/actions/workflows/test.yml/badge.svg)](https://github.com/pongsatt/go-dbevent/actions/workflows/test.yml)
+
 Go library to help publishing events along with transation data atomically
 
 Features include:
