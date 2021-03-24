@@ -60,6 +60,8 @@ func main() {
 
 	eventStore := dbevent.NewStore(mysqlDriver)
 	consumer := eventStore.NewConsumer("group1", &dbevent.ConsumerConfig{})
+	defer consumer.Close()
+
 	consumer.Consume(func(event *dbevent.Event) error {
 		fmt.Printf("got event %d\n", event.ID)
 		return nil
