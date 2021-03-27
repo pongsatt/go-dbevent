@@ -31,12 +31,13 @@ type Backoffer interface {
 
 // Consumer represents consumer
 type Consumer struct {
-	driver    ConsumerDriver
-	backoff   Backoffer
-	config    *ConsumerConfig
-	readGroup string
-	running   bool
-	closeChan chan bool
+	driver         ConsumerDriver
+	fetchBackoff   Backoffer
+	handlerBackoff Backoffer
+	config         *ConsumerConfig
+	readGroup      string
+	running        bool
+	closeChan      chan bool
 }
 
 // NewConsumer creates new consumer
@@ -50,10 +51,11 @@ func NewConsumer(readGroup string, driver ConsumerDriver, config *ConsumerConfig
 	}
 
 	return &Consumer{
-		readGroup: readGroup,
-		driver:    driver,
-		backoff:   NewBackoff(&BackOffConfig{}),
-		config:    config,
+		readGroup:      readGroup,
+		driver:         driver,
+		fetchBackoff:   NewBackoff(&BackOffConfig{}),
+		handlerBackoff: NewBackoff(&BackOffConfig{}),
+		config:         config,
 	}
 }
 
@@ -80,11 +82,11 @@ func (consumer *Consumer) Consume(onMessage func(event *Event) error) {
 
 			if err != nil {
 				log.Printf("error while fetching events. error: %s", err)
-				consumer.backoff.SleepBackoff()
+				consumer.fetchBackoff.SleepBackoff()
 				continue
 			}
 
-			consumer.backoff.ResetSleepBackoff()
+			consumer.fetchBackoff.ResetSleepBackoff()
 
 			for _, event := range events {
 				err = driver.CommitInTrans(consumer.readGroup, event, func() error {
@@ -92,17 +94,17 @@ func (consumer *Consumer) Consume(onMessage func(event *Event) error) {
 				})
 
 				if err != nil {
-					consumer.backoff.SleepBackoff()
+					consumer.handlerBackoff.SleepBackoff()
 					break
 				}
 
 				if err != nil {
 					fmt.Printf("cannot commit event %d. error: %s\n", event.ID, err)
-					consumer.backoff.SleepBackoff()
+					consumer.handlerBackoff.SleepBackoff()
 					break
 				}
 
-				consumer.backoff.ResetSleepBackoff()
+				consumer.handlerBackoff.ResetSleepBackoff()
 			}
 
 			if len(events) == 0 {

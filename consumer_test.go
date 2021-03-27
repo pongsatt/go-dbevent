@@ -10,14 +10,16 @@ import (
 )
 
 func TestConsumer_ConsumeNormal(t *testing.T) {
-	mockBackoffer := &MockBackoffer{}
+	mockFetchBackoffer := &MockBackoffer{}
+	mockHandlerBackoffer := &MockBackoffer{}
 	mockDriver := &MockConsumerDriver{}
 
 	readGroup := "testGroup"
 
 	events := []*Event{{ID: 1}}
 
-	mockBackoffer.On("ResetSleepBackoff")
+	mockFetchBackoffer.On("ResetSleepBackoff")
+	mockHandlerBackoffer.On("ResetSleepBackoff")
 	mockDriver.On("Fetch", readGroup, mock.Anything).Return(events, nil)
 
 	mockDriver.On("CommitInTrans", readGroup, mock.Anything, mock.Anything).Return(nil).
@@ -27,10 +29,11 @@ func TestConsumer_ConsumeNormal(t *testing.T) {
 		})
 
 	consumer := &Consumer{
-		driver:    mockDriver,
-		backoff:   mockBackoffer,
-		readGroup: readGroup,
-		config:    &ConsumerConfig{},
+		driver:         mockDriver,
+		fetchBackoff:   mockFetchBackoffer,
+		handlerBackoff: mockHandlerBackoffer,
+		readGroup:      readGroup,
+		config:         &ConsumerConfig{},
 	}
 
 	var wg sync.WaitGroup
@@ -50,48 +53,65 @@ func TestConsumer_ConsumeNormal(t *testing.T) {
 
 	if assert.NotNil(t, gotEvent) {
 		assert.Equal(t, gotEvent.ID, uint(1))
+
+		mockFetchBackoffer.AssertNumberOfCalls(t, "ResetSleepBackoff", 1)
+		mockHandlerBackoffer.AssertNumberOfCalls(t, "ResetSleepBackoff", 1)
 	}
 }
 
 func TestConsumer_ConsumeNoEvents(t *testing.T) {
-	mockBackoffer := &MockBackoffer{}
+	mockFetchBackoffer := &MockBackoffer{}
+	mockHandlerBackoffer := &MockBackoffer{}
+
 	mockDriver := &MockConsumerDriver{}
 
 	readGroup := "testGroup"
 
 	events := []*Event{}
 
-	mockBackoffer.On("ResetSleepBackoff")
+	mockFetchBackoffer.On("ResetSleepBackoff")
+	mockHandlerBackoffer.On("ResetSleepBackoff")
 	mockDriver.On("Fetch", readGroup, mock.Anything).Return(events, nil)
 
 	consumer := &Consumer{
-		driver:    mockDriver,
-		backoff:   mockBackoffer,
-		readGroup: readGroup,
-		config:    &ConsumerConfig{},
+		driver:         mockDriver,
+		fetchBackoff:   mockFetchBackoffer,
+		handlerBackoff: mockHandlerBackoffer,
+		readGroup:      readGroup,
+		config:         &ConsumerConfig{},
 	}
 
 	onMessage := func(event *Event) error {
 		return nil
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	mockDriver.On("WaitChange", mock.Anything).Run(func(args mock.Arguments) {
 		consumer.Close()
+		wg.Done()
 	})
 
 	consumer.Consume(onMessage)
+	wg.Wait()
+
+	mockFetchBackoffer.AssertNumberOfCalls(t, "ResetSleepBackoff", 1)
+	mockHandlerBackoffer.AssertNumberOfCalls(t, "ResetSleepBackoff", 0)
 }
 
 func TestConsumer_ConsumeError(t *testing.T) {
-	mockBackoffer := &MockBackoffer{}
+	mockFetchBackoffer := &MockBackoffer{}
+	mockHandlerBackoffer := &MockBackoffer{}
 	mockDriver := &MockConsumerDriver{}
 
 	readGroup := "testGroup"
 
 	events := []*Event{{ID: 1}}
 
-	mockBackoffer.On("ResetSleepBackoff")
-	mockBackoffer.On("SleepBackoff")
+	mockFetchBackoffer.On("ResetSleepBackoff")
+	mockHandlerBackoffer.On("ResetSleepBackoff")
+	mockHandlerBackoffer.On("SleepBackoff")
 	mockDriver.On("Fetch", readGroup, mock.Anything).Return(events, nil)
 	mockDriver.On("CommitInTrans", readGroup, mock.Anything, mock.Anything).
 		Return(func(readGroup string, event *Event, handler func() error) error {
@@ -99,10 +119,11 @@ func TestConsumer_ConsumeError(t *testing.T) {
 		})
 
 	consumer := &Consumer{
-		driver:    mockDriver,
-		backoff:   mockBackoffer,
-		readGroup: readGroup,
-		config:    &ConsumerConfig{},
+		driver:         mockDriver,
+		fetchBackoff:   mockFetchBackoffer,
+		handlerBackoff: mockHandlerBackoffer,
+		readGroup:      readGroup,
+		config:         &ConsumerConfig{},
 	}
 
 	var wg sync.WaitGroup
@@ -123,11 +144,15 @@ func TestConsumer_ConsumeError(t *testing.T) {
 	wg.Wait()
 
 	mockDriver.AssertNumberOfCalls(t, "Fetch", 2)
-	mockBackoffer.AssertNumberOfCalls(t, "SleepBackoff", 2)
+	mockFetchBackoffer.AssertNumberOfCalls(t, "ResetSleepBackoff", 2)
+	mockFetchBackoffer.AssertNumberOfCalls(t, "SleepBackoff", 0)
+	mockHandlerBackoffer.AssertNumberOfCalls(t, "ResetSleepBackoff", 0)
+	mockHandlerBackoffer.AssertNumberOfCalls(t, "SleepBackoff", 2)
 }
 
 func TestConsumer_FetchError(t *testing.T) {
-	mockBackoffer := &MockBackoffer{}
+	mockFetchBackoffer := &MockBackoffer{}
+	mockHandlerBackoffer := &MockBackoffer{}
 	mockDriver := &MockConsumerDriver{}
 
 	readGroup := "testGroup"
@@ -137,10 +162,11 @@ func TestConsumer_FetchError(t *testing.T) {
 	mockDriver.On("Fetch", readGroup, mock.Anything).Return(nil, mockErr)
 
 	consumer := &Consumer{
-		driver:    mockDriver,
-		backoff:   mockBackoffer,
-		readGroup: readGroup,
-		config:    &ConsumerConfig{},
+		driver:         mockDriver,
+		fetchBackoff:   mockFetchBackoffer,
+		handlerBackoff: mockHandlerBackoffer,
+		readGroup:      readGroup,
+		config:         &ConsumerConfig{},
 	}
 
 	var called bool
@@ -149,7 +175,7 @@ func TestConsumer_FetchError(t *testing.T) {
 		return nil
 	}
 
-	mockBackoffer.On("SleepBackoff").Once().Run(func(args mock.Arguments) {
+	mockFetchBackoffer.On("SleepBackoff").Once().Run(func(args mock.Arguments) {
 		consumer.Close()
 	})
 

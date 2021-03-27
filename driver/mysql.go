@@ -256,7 +256,8 @@ func (db *MySQLDriver) CommitInTrans(readGroup string, event *dbevent.Event, han
 
 	// event handler
 	if err = handler(); err != nil {
-		return tx.Rollback()
+		tx.Rollback()
+		return err
 	}
 
 	return tx.Commit()
