@@ -13,13 +13,13 @@ type MockConsumerDriver struct {
 	mock.Mock
 }
 
-// CommitEvent provides a mock function with given fields: readGroup, event
-func (_m *MockConsumerDriver) CommitEvent(readGroup string, event *Event) error {
-	ret := _m.Called(readGroup, event)
+// CommitInTrans provides a mock function with given fields: readGroup, event, handler
+func (_m *MockConsumerDriver) CommitInTrans(readGroup string, event *Event, handler func() error) error {
+	ret := _m.Called(readGroup, event, handler)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, *Event) error); ok {
-		r0 = rf(readGroup, event)
+	if rf, ok := ret.Get(0).(func(string, *Event, func() error) error); ok {
+		r0 = rf(readGroup, event, handler)
 	} else {
 		r0 = ret.Error(0)
 	}

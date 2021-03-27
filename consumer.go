@@ -13,7 +13,7 @@ var (
 // ConsumerDriver represents event consumer driver
 type ConsumerDriver interface {
 	Fetch(readGroup string, limit int) ([]*Event, error)
-	CommitEvent(readGroup string, event *Event) error
+	CommitInTrans(readGroup string, event *Event, handler func() error) error
 	WaitChange(timeout time.Duration)
 }
 
@@ -87,13 +87,16 @@ func (consumer *Consumer) Consume(onMessage func(event *Event) error) {
 			consumer.backoff.ResetSleepBackoff()
 
 			for _, event := range events {
-				// process event
-				if err = onMessage(event); err != nil {
+				err = driver.CommitInTrans(consumer.readGroup, event, func() error {
+					return onMessage(event)
+				})
+
+				if err != nil {
 					consumer.backoff.SleepBackoff()
 					break
 				}
 
-				if err = driver.CommitEvent(consumer.readGroup, event); err != nil {
+				if err != nil {
 					fmt.Printf("cannot commit event %d. error: %s\n", event.ID, err)
 					consumer.backoff.SleepBackoff()
 					break

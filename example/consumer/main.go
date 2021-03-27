@@ -52,10 +52,12 @@ func main() {
 			fmt.Printf("%s -> found %d events\n", nodeID, len(events))
 
 			for _, event := range events {
-				// process event
-
-				if err = mysqlDriver.CommitEvent(groupID, event); err != nil {
-					fmt.Println("error committing an event")
+				err = mysqlDriver.CommitInTrans(groupID, event, func() error {
+					// process event here
+					return nil
+				})
+				if err != nil {
+					fmt.Println("error processing an event")
 				}
 
 				fmt.Printf("%s -> event id %d committed\n", nodeID, event.ID)

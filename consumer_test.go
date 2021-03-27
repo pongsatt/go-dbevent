@@ -19,7 +19,12 @@ func TestConsumer_ConsumeNormal(t *testing.T) {
 
 	mockBackoffer.On("ResetSleepBackoff")
 	mockDriver.On("Fetch", readGroup, mock.Anything).Return(events, nil)
-	mockDriver.On("CommitEvent", readGroup, mock.Anything).Return(nil)
+
+	mockDriver.On("CommitInTrans", readGroup, mock.Anything, mock.Anything).Return(nil).
+		Run(func(args mock.Arguments) {
+			evenHandler := args.Get(2).(func() error)
+			evenHandler()
+		})
 
 	consumer := &Consumer{
 		driver:    mockDriver,
@@ -88,6 +93,10 @@ func TestConsumer_ConsumeError(t *testing.T) {
 	mockBackoffer.On("ResetSleepBackoff")
 	mockBackoffer.On("SleepBackoff")
 	mockDriver.On("Fetch", readGroup, mock.Anything).Return(events, nil)
+	mockDriver.On("CommitInTrans", readGroup, mock.Anything, mock.Anything).
+		Return(func(readGroup string, event *Event, handler func() error) error {
+			return handler()
+		})
 
 	consumer := &Consumer{
 		driver:    mockDriver,
@@ -109,50 +118,6 @@ func TestConsumer_ConsumeError(t *testing.T) {
 		}
 		return errors.New("mock error")
 	}
-
-	consumer.Consume(onMessage)
-	wg.Wait()
-
-	mockDriver.AssertNumberOfCalls(t, "Fetch", 2)
-	mockBackoffer.AssertNumberOfCalls(t, "SleepBackoff", 2)
-}
-
-func TestConsumer_CommitError(t *testing.T) {
-	mockBackoffer := &MockBackoffer{}
-	mockDriver := &MockConsumerDriver{}
-
-	readGroup := "testGroup"
-
-	events := []*Event{{ID: 1}}
-
-	mockBackoffer.On("ResetSleepBackoff")
-	mockBackoffer.On("SleepBackoff")
-	mockDriver.On("Fetch", readGroup, mock.Anything).Return(events, nil)
-
-	consumer := &Consumer{
-		driver:    mockDriver,
-		backoff:   mockBackoffer,
-		readGroup: readGroup,
-		config:    &ConsumerConfig{},
-	}
-
-	onMessage := func(event *Event) error {
-		return nil
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	var called int
-	mockDriver.On("CommitEvent", readGroup, mock.Anything).
-		Return(errors.New("mock commit error")).
-		Run(func(args mock.Arguments) {
-			called++
-			wg.Done()
-			if called == 2 {
-				consumer.Close()
-			}
-		})
 
 	consumer.Consume(onMessage)
 	wg.Wait()

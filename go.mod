@@ -7,4 +7,5 @@ require (
 	github.com/google/uuid v1.2.0
 	github.com/siddontang/go-mysql v1.1.0
 	github.com/stretchr/testify v1.7.0 // indirect
+	github.com/vektra/mockery/v2 v2.7.4 // indirect
 )

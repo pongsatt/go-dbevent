@@ -139,19 +139,6 @@ func (db *MySQLDriver) currentOffset(readGroup string) (uint, error) {
 	return offset, nil
 }
 
-func (db *MySQLDriver) saveOffset(readGroup string, offset uint) error {
-	query := `INSERT INTO event_offsets (name, offset) VALUES (?, ?)
-	ON DUPLICATE KEY UPDATE offset = ?`
-
-	_, err := db.db.Exec(query, readGroup, offset, offset)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (db *MySQLDriver) createEventLockTable() error {
 	query := `CREATE TABLE IF NOT EXISTS event_locks ( 
 		name varchar(128) NOT NULL, 
@@ -251,8 +238,28 @@ func (db *MySQLDriver) Fetch(readGroup string, limit int) ([]*dbevent.Event, err
 }
 
 // CommitEvent as processed
-func (db *MySQLDriver) CommitEvent(readGroup string, event *dbevent.Event) error {
-	return db.saveOffset(readGroup, event.ID)
+func (db *MySQLDriver) CommitInTrans(readGroup string, event *dbevent.Event, handler func() error) error {
+	tx, err := db.db.Begin()
+
+	if err != nil {
+		return err
+	}
+
+	query := `INSERT INTO event_offsets (name, offset) VALUES (?, ?)
+	ON DUPLICATE KEY UPDATE offset = ?`
+
+	_, err = tx.Exec(query, readGroup, event.ID, event.ID)
+
+	if err != nil {
+		return err
+	}
+
+	// event handler
+	if err = handler(); err != nil {
+		return tx.Rollback()
+	}
+
+	return tx.Commit()
 }
 
 func (db *MySQLDriver) getEvents(offset uint, limit int) ([]*dbevent.Event, error) {
