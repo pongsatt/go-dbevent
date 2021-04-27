@@ -44,6 +44,7 @@ type Event struct {
 
 // DBConfig represents database configuration
 type DBConfig struct {
+	DSN      string
 	Host     string
 	Port     int
 	DBName   string
@@ -53,5 +54,9 @@ type DBConfig struct {
 
 // ToDSN return datasource name
 func (config *DBConfig) ToDSN() string {
+	if config.DSN != "" {
+		return config.DSN
+	}
+
 	return fmt.Sprintf("%s:%s@(%s:%d)/%s", config.User, config.Password, config.Host, config.Port, config.DBName)
 }
