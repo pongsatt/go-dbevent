@@ -4,6 +4,7 @@ package dbevent
 type StoreDriver interface {
 	Provision() error
 	Create(events ...*Event) error
+	Close() error
 	ConsumerDriver
 }
 
@@ -31,4 +32,9 @@ func (store *Store) Produce(events ...*Event) error {
 // NewConsumer creates new consumer for store
 func (store *Store) NewConsumer(readGroup string, config *ConsumerConfig) *Consumer {
 	return NewConsumer(readGroup, store.driver, config)
+}
+
+// Close driver
+func (store *Store) Close() error {
+	return store.driver.Close()
 }

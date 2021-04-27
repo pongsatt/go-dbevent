@@ -33,9 +33,10 @@ func main() {
 	}
 
 	mysqlDriver := driver.NewMySQLEventDriver(dbConfig, &driver.MySQLStoreConfig{NodeID: nodeID})
-	defer mysqlDriver.Close()
 
 	eventStore := dbevent.NewStore(mysqlDriver)
+	defer eventStore.Close()
+
 	consumer := eventStore.NewConsumer("group1", &dbevent.ConsumerConfig{})
 	defer consumer.Close()
 
