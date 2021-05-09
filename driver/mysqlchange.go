@@ -1,10 +1,10 @@
 package driver
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
+	mysql "github.com/go-sql-driver/mysql"
 	"github.com/pongsatt/go-dbevent"
 	"github.com/siddontang/go-mysql/canal"
 )
@@ -22,10 +22,12 @@ type MySQLChange struct {
 
 // NewMySQLChange creates new instance
 func NewMySQLChange(config *dbevent.DBConfig, tableName string) *MySQLChange {
+	mysqlConfig, err := mysql.ParseDSN(config.ToDSN())
+
 	cfg := canal.NewDefaultConfig()
-	cfg.Addr = fmt.Sprintf("%s:%d", config.Host, config.Port)
-	cfg.User = config.User
-	cfg.Password = config.Password
+	cfg.Addr = mysqlConfig.Addr
+	cfg.User = mysqlConfig.User
+	cfg.Password = mysqlConfig.Passwd
 	cfg.Dump.ExecutionPath = "" // do not use mysqldump
 
 	c, err := canal.NewCanal(cfg)
