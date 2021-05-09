@@ -34,12 +34,12 @@ func (j JSON) Value() (driver.Value, error) {
 
 // Event represents event data
 type Event struct {
-	ID            uint
-	Type          string `gorm:"not null"`
-	AggregateType string
-	AggregateID   string
+	ID            uint   `xorm:"pk 'id'"`
+	Type          string `xorm:"type" gorm:"not null"`
+	AggregateType string `xorm:"aggregate_type"`
+	AggregateID   string `xorm:"aggregate_id"`
 	Data          JSON
-	CreatedAt     *time.Time
+	CreatedAt     *time.Time `xorm:"created_at"`
 }
 
 // DBConfig represents database configuration
